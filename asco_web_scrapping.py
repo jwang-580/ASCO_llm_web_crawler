@@ -5,7 +5,6 @@ import os
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -17,7 +16,6 @@ def get_webdriver():
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
-    # Add user agent to avoid detection
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
     try:
@@ -58,6 +56,45 @@ def extract_author_coi(disclosures_section):
     
     return author_cois
 
+def extract_countries(driver, wait):
+    countries = set()  # Using set to avoid duplicates
+    try:
+        # Wait for the core-authors section to be present
+        authors_section = wait.until(
+            EC.presence_of_element_located((By.CLASS_NAME, "core-authors"))
+        )
+        print("Found core-authors section")  # Debug print
+        
+        # More specific CSS selector based on the HTML structure
+        affiliations = authors_section.find_elements(
+            By.CSS_SELECTOR, 
+            'div.affiliations div[property="affiliation"][typeof="Organization"] span[property="name"]'
+        )
+        print(f"Found {len(affiliations)} affiliations")  # Debug print
+        
+        for affiliation in affiliations:
+            try:
+                # Get the text using JavaScript to ensure content is loaded
+                text = driver.execute_script("return arguments[0].textContent;", affiliation)
+                print(f"Raw affiliation text: {text}")  # Debug print
+                
+                if text and "," in text:
+                    # Split by comma and get the last part
+                    parts = [part.strip() for part in text.split(",")]
+                    country = parts[-1]  # Get the last part after comma
+                    print(f"Extracted country: {country}")  # Debug print
+                    if country:
+                        countries.add(country)
+            except Exception as e:
+                print(f"Error processing affiliation: {str(e)}")
+                continue
+        
+        print(f"Final countries set: {countries}")  # Debug print
+        return list(countries)
+    except Exception as e:
+        print(f"Error extracting countries: {str(e)}")
+        return []
+
 def scrape_asco_article(url):
     driver = get_webdriver()
     
@@ -79,6 +116,11 @@ def scrape_asco_article(url):
             author_elements = driver.find_elements(By.CSS_SELECTOR, 'meta[name="dc.Creator"]')
             author_names = [author.get_attribute("content") for author in author_elements]
             
+            doi_element = wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'meta[name="dc.Identifier"]'))
+            )
+            doi = doi_element.get_attribute("content")
+
             # Extract the abstract
             try:
                 abstract_section = wait.until(
@@ -113,18 +155,18 @@ def scrape_asco_article(url):
             except (TimeoutException, NoSuchElementException):
                 pub_date = "Publication date not found"
             
-            # Extract authors' disclosures (if available)
+            # Extract authors' disclosures
             print("Looking for disclosures...")
             try:
                 disclosures_section = wait.until(
-                    EC.presence_of_element_located((By.ID, "sec-7"))
+                    EC.presence_of_element_located((By.ID, "sec-7")) # always in section 7
                 )
-                # Extract individual author COIs
                 author_cois = extract_author_coi(disclosures_section)
-                print(f"Found disclosures for {len(author_cois)} authors")
             except (TimeoutException, NoSuchElementException):
-                print("Disclosures section not found")
                 author_cois = {}
+            
+            # Extract countries
+            countries = extract_countries(driver, wait)
             
             # Return the extracted information
             return {
@@ -132,33 +174,24 @@ def scrape_asco_article(url):
                 "authors": author_names,
                 "abstract": abstract,
                 "publication_date": pub_date,
-                "author_disclosures": author_cois
+                "doi": doi,
+                "author_disclosures": author_cois,
+                "countries": countries
             }
         
         except TimeoutException as te:
-            print(f"Timeout while waiting for element: {str(te)}")
-            # Take screenshot for debugging
-            driver.save_screenshot("error_screenshot.png")
-            print("Error screenshot saved as error_screenshot.png")
             return None
             
     except Exception as e:
         print(f"An error occurred: {str(e)}")
-        # Take screenshot for debugging
-        try:
-            driver.save_screenshot("error_screenshot.png")
-            print("Error screenshot saved as error_screenshot.png")
-        except:
-            print("Could not save error screenshot")
         return None
         
     finally:
         driver.quit()
 
-# Usage
 if __name__ == "__main__":
-    #url = "https://ascopubs.org/doi/10.1200/JCO.23.00975"
-    url = "https://ascopubs.org/doi/10.1200/JCO.21.01963"
+    url = "https://ascopubs.org/doi/10.1200/JCO.23.00975"
+    #url = "https://ascopubs.org/doi/10.1200/JCO.21.01963"
     result = scrape_asco_article(url)
     
     if result:
@@ -166,8 +199,10 @@ if __name__ == "__main__":
         print("-" * 50)
         print("Title:", result["title"])
         print("\nAuthors:", ", ".join(result["authors"]))
+        print("\nCountries:", ", ".join(result["countries"]))
         print("\nAbstract:", result["abstract"])
         print("\nPublication Date:", result["publication_date"])
+        print("\nDOI:", result["doi"])
         print("\nAuthor Disclosures:")
         for author, cois in result["author_disclosures"].items():
             print(f"\n{author}:")
