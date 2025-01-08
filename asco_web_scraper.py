@@ -9,6 +9,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import csv
 import time
+import json
+from datetime import datetime
+import re
+from bs4 import BeautifulSoup
 
 def get_webdriver():
     chrome_options = Options()
@@ -25,36 +29,60 @@ def get_webdriver():
         print(f"Chrome setup failed: {str(e)}")
         raise Exception("Failed to initialize Chrome webdriver")
 
-def extract_author_coi(disclosures_section):
-    """Helper function to extract individual author COIs"""
-    author_cois = {}
-    
-    # Find all sections with data-type="coi-statement"
-    coi_sections = disclosures_section.find_elements(By.CSS_SELECTOR, 'section[data-type="coi-statement"]')
-    
-    for section in coi_sections:
-        try:
-            # Get author name (h4)
-            author_name = section.find_element(By.TAG_NAME, "h4").text
-            
-            # Get all disclosure paragraphs
-            disclosure_paragraphs = section.find_elements(By.CSS_SELECTOR, 'div[role="paragraph"]')
-            disclosures = []
-            
-            for para in disclosure_paragraphs:
-                text = para.text
-                if text and not text.startswith("No other potential conflicts"):  # Skip the final note
-                    disclosures.append(text)
-            
-            if disclosures:
-                author_cois[author_name] = disclosures
-            else:
-                author_cois[author_name] = ["No conflicts reported"]
+def extract_author_coi(driver, wait):
+    """Extract author conflicts of interest from the disclosures section"""
+    try:
+        # Find section with author disclosures heading
+        disclosure_sections = driver.find_elements(By.TAG_NAME, "section")
+        disclosure_section = None
+        
+        for section in disclosure_sections:
+            try:
+                heading = section.find_element(By.XPATH, ".//*[self::h2 or self::h3]")
+                if "Authors' Disclosures of Potential Conflicts of Interest" in heading.text:
+                    disclosure_section = section
+                    break
+            except NoSuchElementException:
+                continue
                 
-        except NoSuchElementException:
-            continue
-    
-    return author_cois
+        if not disclosure_section:
+            return {}
+            
+        # Extract individual author disclosures
+        author_cois = {}
+        current_author = None
+        
+        # Find all subsections (each author should be in their own subsection)
+        subsections = disclosure_section.find_elements(By.TAG_NAME, "section")
+        
+        for subsection in subsections:
+            try:
+                # Get author name from h3
+                author_heading = subsection.find_element(By.TAG_NAME, "h3")
+                if author_heading:
+                    current_author = author_heading.text.strip()
+                    author_cois[current_author] = {}
+                    
+                    # Get all paragraphs in this subsection
+                    paragraphs = subsection.find_elements(By.TAG_NAME, "p")
+                    for p in paragraphs:
+                        text = p.text.strip()
+                        if ":" in text:
+                            # Split on first colon
+                            category, details = text.split(":", 1)
+                            # Remove bold tags if present
+                            category = category.replace("Stock and Other Ownership Interests", "Stock")\
+                                            .strip()
+                            author_cois[current_author][category] = details.strip()
+                            
+            except NoSuchElementException:
+                continue
+                
+        return author_cois
+
+    except Exception as e:
+        print(f"Error extracting author disclosures: {str(e)}")
+        return {}
 
 def extract_countries(driver, wait):
     countries = list() 
@@ -153,7 +181,7 @@ def scrape_asco_article(url):
                 disclosures_section = wait.until(
                     EC.presence_of_element_located((By.ID, "sec-7")) # always in section 7
                 )
-                author_cois = extract_author_coi(disclosures_section)
+                author_cois = extract_author_coi(driver, wait)
             except (TimeoutException, NoSuchElementException):
                 author_cois = {}
             
@@ -182,18 +210,16 @@ def scrape_asco_article(url):
         driver.quit()
 
 if __name__ == "__main__":
-    # List of URLs to scrape
-    urls = [
-        "https://ascopubs.org/doi/10.1200/JCO.23.00975",
-        "https://ascopubs.org/doi/10.1200/JCO.21.01963",
-        # Add more URLs here
-    ]
+    with open('data/jco_urls.jsonl', 'r') as file:
+        urls = [json.loads(line)['url'] for line in file][199:400]
     
     # CSV headers
     headers = ['title', 'authors', 'countries', 'abstract', 'publication_date', 'doi', 'author_disclosures']
     
     # Create/open CSV file
-    with open('data/asco_articles.csv', 'w', newline='', encoding='utf-8') as csvfile:
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"data/asco_articles_{timestamp}.csv"
+    with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=headers)
         writer.writeheader()
         
