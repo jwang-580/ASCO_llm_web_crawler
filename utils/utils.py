@@ -65,7 +65,9 @@ def extract_author_coi(html_content):
     # We look through all heading tags (h1–h6).
     disclosure_headings = []
     for tag in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
-        if "Authors' Disclosures of Potential Conflicts of Interest" in tag.get_text():
+        text = tag.get_text()
+        if "Authors' Disclosures of Potential Conflicts of Interest" in text or \
+            "Authors’ Disclosures of Potential Conflicts of Interest" in text:
             disclosure_headings.append(tag)
 
     # Helper: check if a tag is any heading

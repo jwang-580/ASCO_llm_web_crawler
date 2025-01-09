@@ -98,21 +98,23 @@ def scrape_asco_article(url):
                 abstract_section = wait.until(
                     EC.presence_of_element_located((By.ID, "abstract"))
                 )
-                # Get all subsections (Purpose, Methods, Results, Conclusion)
+                
+                # First try to find subsections
                 abstract_parts = abstract_section.find_elements(By.TAG_NAME, "section")
-                abstract_text = []
                 
-                for part in abstract_parts:
-                    # Get the section title (h3)
-                    try:
-                        section_title = part.find_element(By.TAG_NAME, "h3").text
-                        # Get the section content (div with role="paragraph")
-                        content = part.find_element(By.CSS_SELECTOR, 'div[role="paragraph"]').text
-                        abstract_text.append(f"{section_title}: {content}")
-                    except NoSuchElementException:
-                        continue
-                
-                abstract = "\n\n".join(abstract_text)
+                if abstract_parts:  # Structured abstract with subsections
+                    abstract_text = []
+                    for part in abstract_parts:
+                        try:
+                            section_title = part.find_element(By.TAG_NAME, "h3").text
+                            content = part.find_element(By.CSS_SELECTOR, 'div[role="paragraph"]').text
+                            abstract_text.append(f"{section_title}: {content}")
+                        except NoSuchElementException:
+                            continue
+                    abstract = "\n\n".join(abstract_text)
+                else:  # Unstructured abstract
+                    paragraphs = abstract_section.find_elements(By.CSS_SELECTOR, 'div[role="paragraph"]')
+                    abstract = "\n\n".join(para.text for para in paragraphs)
 
             except (TimeoutException, NoSuchElementException):
                 abstract = "Abstract not found"
@@ -161,7 +163,7 @@ def scrape_asco_article(url):
 
 if __name__ == "__main__":
     with open('data/jco_urls.jsonl', 'r') as file:
-        urls = [json.loads(line)['url'] for line in file][199:200]
+        urls = [json.loads(line)['url'] for line in file][200:400]
     
     # CSV headers
     headers = ['title', 'authors', 'countries', 'abstract', 'publication_date', 'doi', 'author_disclosures']
