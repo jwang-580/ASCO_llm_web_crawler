@@ -7,6 +7,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from datetime import datetime
 from bs4 import BeautifulSoup
+import re
 
 def get_webdriver():
     chrome_options = Options()
@@ -99,10 +100,11 @@ def extract_author_coi(html_content):
                 author_headings.append(htag)
 
         # For each author heading, gather the paragraphs/divs until the next author heading
-        for j, author_tag in enumerate(author_headings):
-            # Skip the first author (j == 0)
-            if j == 0:
-                continue
+        if author_headings:
+            for j, author_tag in enumerate(author_headings):
+                # Skip the first author (j == 0)
+                if j == 0:
+                    continue
             
             author_name = author_tag.get_text(strip=True)
 
@@ -124,5 +126,96 @@ def extract_author_coi(html_content):
                 "Author": author_name,
                 "Disclosures": disclosures
             })
+
+        else:
+            # SCENARIO B: No author subheadings. All authors in one or more <div>/<p> blocks with <b> labels.
+            text_blocks = block_soup.find_all(["div", "p"])
+            for block in text_blocks:
+                b_tags = block.find_all("b")
+                # For each <b> label like: <b>Employment or Leadership Position:</b> ...
+                for btag in b_tags:
+                    raw_label = btag.get_text(" ", strip=True)  # e.g. "Employment or Leadership Position:"
+                    parent_text = block.get_text(" ", strip=True)
+
+                    # (A) Normalize the label
+                    #     1) Drop the word " Position" if present
+                    #     2) Ensure we have "Employment or Leadership:" form
+                    #     3) Remove trailing colon for easier pattern match
+                    label_clean = raw_label.replace(" Position", "")  # remove " Position"
+                    label_clean = re.sub(r':$', '', label_clean).strip()  # remove trailing colon
+                    # e.g. "Employment or Leadership"
+
+                    # We'll keep it consistent by re-adding a colon for final output
+                    label_clean += ":"
+
+                    # (B) Find the text chunk that belongs to this label
+                    #    We locate everything after the label, up to the next <b> label
+                    #    by scanning the entire block's text.
+                    #    We'll form a small pattern for our label, ignoring optional colon/spaces
+                    pattern_label = re.escape(raw_label.rstrip(':')) + r':?\s*(.*)'
+                    # e.g. "Employment\ or\ Leadership\ Position:?\s*(.*)"
+
+                    m = re.search(pattern_label, parent_text)
+                    if not m:
+                        continue  # can't find text after the label
+
+                    # We'll get the substring from the match
+                    authors_string = m.group(1)
+
+                    # Next label starts?
+                    # We'll gather all other <b> labels in this block and see which one starts after this
+                    all_labels_in_block = []
+                    for other_b in b_tags:
+                        other_l = other_b.get_text(" ", strip=True).rstrip(':')
+                        for mm in re.finditer(re.escape(other_l), parent_text):
+                            all_labels_in_block.append((mm.start(), other_l))
+                    all_labels_in_block.sort(key=lambda x: x[0])
+
+                    # Our substring begins at m.start(1)
+                    our_start = m.start(1)
+                    next_label_index = None
+                    for (pos, lbl) in all_labels_in_block:
+                        if pos > our_start:
+                            next_label_index = pos
+                            break
+
+                    if next_label_index:
+                        length_to_cut = next_label_index - our_start
+                        authors_string = authors_string[:length_to_cut]
+
+                    # (C) Now we have the chunk for this label, e.g.
+                    #   "Robert Weaver, Florida Cancer Specialists (C); Elizabeth Crowley, Celldex Therapeutics (C)"
+                    # Split on semicolons
+                    people_chunks = [p.strip() for p in authors_string.split(';') if p.strip()]
+
+                    for chunk in people_chunks:
+                        # chunk e.g. "Robert Weaver, Florida Cancer Specialists (C)"
+                        # We'll parse:
+                        #   - author name: everything up to the first comma
+                        #   - institution: everything after the comma, minus any trailing (C)
+                        author = chunk
+                        institution = ""
+
+                        # Attempt to split by the first comma
+                        if ',' in chunk:
+                            parts = chunk.split(',', 1)  # 1 split only
+                            author = parts[0].strip()       # e.g. "Robert Weaver"
+                            institution = parts[1].strip()  # e.g. "Florida Cancer Specialists (C)"
+
+                            # remove trailing (C) if present
+                            institution = re.sub(r'\(C\)', '', institution).strip()
+
+                        # Our final disclosure string
+                        # e.g. "Employment or Leadership: Florida Cancer Specialists"
+                        # We only append the institution if it's not empty
+                        if institution:
+                            disc = f"{label_clean} {institution}"
+                        else:
+                            disc = label_clean  # fallback if we didn't parse an institution
+
+                        all_disclosures.append({
+                            "Author": author,
+                            "Disclosures": [disc]
+                        })
 
     return all_disclosures
