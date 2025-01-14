@@ -11,7 +11,7 @@ import ast
 load_dotenv()
 client = OpenAI(api_key=os.getenv('OAI_API_KEY'))
 
-asco_articles = pd.read_csv('data/asco_articles.csv')[2000:]
+asco_articles = pd.read_csv('data/asco_articles.csv')
 
 class Company(BaseModel):
     product_name: str
