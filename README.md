@@ -1,4 +1,4 @@
-# ASCO LLM Web Crawler
+# LLM for Conflicts of Interest Analysis in Oncology Trials
 
 ## Overview
 This project is a web crawler and data analysis tool designed to extract and analyze conflicts of interest (COIs) from the Journal of Clinical Oncology (JCO) published by the American Society of Clinical Oncology (ASCO). It uses web scraping, natural language processing, and large language models (LLMs) to identify pharmaceutical companies and their products mentioned in clinical trial abstracts.
@@ -72,27 +72,3 @@ Run R scripts in data_analysis/ for statistical analysis and data visualization
 4. Normalize company name variants for consistent analysis
 5. Generate analysis datasets 
 6. Statistical analysis and data visualization 
-
-## License
-MIT License
-
-Copyright (c) 2024
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
