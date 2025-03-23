@@ -10,6 +10,8 @@ This project is a web crawler and data analysis tool designed to extract and ana
 - Normalization of company name variants for consistent analysis
 - Processing and analysis of clinical trial data for research purposes
 
+![Project workflow overview](data/fig1.png)
+
 ## Project Structure
 - `company_id.py`: Identifies pharmaceutical products and their manufacturing companies from abstracts using OpenAI's API
 - `company_clean_name.py`: Normalizes company name variants for consistent analysis
