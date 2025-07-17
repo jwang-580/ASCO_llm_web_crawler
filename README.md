@@ -73,4 +73,19 @@ Run R scripts in data_analysis/ for statistical analysis and data visualization
 3. Process abstracts using LLMs to identify pharmaceutical products and companies
 4. Normalize company name variants for consistent analysis
 5. Generate analysis datasets 
-6. Statistical analysis and data visualization 
+6. Statistical analysis and data visualization
+
+## Citation
+
+```bibtex
+@article{Wang2025_COI_Trends,
+  author       = {Wang, J. and Silberman, P. C. and  Mullick Chowdhury, S. and Blaser, B.},
+  title        = {Trends of authors’ conflicts of interest in clinical trials published in the Journal of Clinical Oncology: A large‑language model–assisted analysis},
+  journal      = {JCO Oncology Practice},
+  year         = {2025},
+  doi          = {10.1200/OP-25-00293},
+}
+```
+```
+Wang J, Silberman PC, Mullick Chowdhury S, Blaser BW. Trends of Authors' Conflicts of Interest in Clinical Trials Published in the _Journal of Clinical Oncology_: A Large Language Model-Assisted Longitudinal Study. JCO Oncol Pract. 2025 Jul 16:OP2500293. doi: 10.1200/OP-25-00293. PMID: 40669037.
+```
